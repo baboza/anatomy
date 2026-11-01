@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root,
+html[data-theme="light"] {
+  --bg-canvas: #eaf1f8;
+  --bg-canvas-grad-top: #f4f8fc;
+  --bg-canvas-grad-bottom: #dce7f3;
+  --bg-panel: rgba(255, 255, 255, 0.90);
+  --bg-panel-solid: #ffffff;
+  --bg-panel-subtle: rgba(241, 246, 252, 0.88);
+  --bg-hover: rgba(29, 78, 216, 0.07);
+  --bg-active: rgba(29, 78, 216, 0.12);
+  --text-primary: #142d52;
+  --text-secondary: #466080;
+  --text-muted: #6e85a3;
+  --border-panel: rgba(20, 45, 82, 0.11);
+  --border-strong: rgba(29, 78, 216, 0.28);
+  --accent-primary: #1d4ed8;
+  --accent-hover: #1e40af;
+  --accent-soft: rgba(29, 78, 216, 0.10);
+  --shadow-panel: 0 12px 32px -8px rgba(18, 41, 74, 0.14), 0 2px 6px -1px rgba(18, 41, 74, 0.06);
+  --scrollbar-track: rgba(226, 235, 245, 0.6);
+  --scrollbar-thumb: rgba(70, 96, 128, 0.28);
+}
+
+html[data-theme="dark"] {
+  --bg-canvas: #070e1b;
+  --bg-canvas-grad-top: #0b1528;
+  --bg-canvas-grad-bottom: #050912;
+  --bg-panel: rgba(13, 23, 42, 0.88);
+  --bg-panel-solid: #0f172a;
+  --bg-panel-subtle: rgba(23, 36, 61, 0.78);
+  --bg-hover: rgba(56, 189, 248, 0.10);
+  --bg-active: rgba(56, 189, 248, 0.18);
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --border-panel: rgba(148, 163, 184, 0.16);
+  --border-strong: rgba(56, 189, 248, 0.38);
+  --accent-primary: #0284c7;
+  --accent-hover: #0369a1;
+  --accent-soft: rgba(56, 189, 248, 0.14);
+  --shadow-panel: 0 16px 40px -10px rgba(0, 0, 0, 0.72);
+  --scrollbar-track: rgba(15, 23, 42, 0.6);
+  --scrollbar-thumb: rgba(56, 189, 248, 0.28);
+}
+
+@layer base {
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', 'Sarabun', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-primary);
+}
+
+/* CHAi Clinical Frosted Panels */
+.chai-panel {
+  background: var(--bg-panel);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-panel);
+  box-shadow: var(--shadow-panel);
+  color: var(--text-primary);
+}
+
+.chai-card {
+  background: var(--bg-panel-subtle);
+  border: 1px solid var(--border-panel);
+  color: var(--text-primary);
+}
+
+.chai-text-primary {
+  color: var(--text-primary);
+}
+
+.chai-text-secondary {
+  color: var(--text-secondary);
+}
+
+.chai-text-muted {
+  color: var(--text-muted);
+}
+
+.chai-viewport-bg {
+  background: radial-gradient(circle at 50% 42%, var(--bg-canvas-grad-top) 0%, var(--bg-canvas) 58%, var(--bg-canvas-grad-bottom) 100%);
+}
+
+/* Range Sliders */
+input[type="range"] {
+  accent-color: var(--accent-primary);
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeInScale 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
