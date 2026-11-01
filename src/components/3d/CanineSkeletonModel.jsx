@@ -590,7 +590,7 @@ export default function CanineSkeletonModel({
 
     // Update Canine Body Contour layer
     for (const s of preparedData.skinMaterials) {
-      if (bodyContourMode === 'off' || customGltfScene) {
+      if (bodyContourMode === 'off') {
         s.mesh.visible = false;
         continue;
       }

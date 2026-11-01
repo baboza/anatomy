@@ -87,7 +87,10 @@ export default function CanineCanvas({
   const [boundsMap, setBoundsMap] = useState(null);
 
   const handleBoundsComputed = useCallback((bounds) => {
-    setBoundsMap(bounds);
+    // Defer state update to next microtask so Suspense fallback doesn't trigger setState-in-render warning
+    setTimeout(() => {
+      setBoundsMap(bounds);
+    }, 0);
   }, []);
 
   const isLight = theme === 'light';
