@@ -181,7 +181,8 @@ export default function CanineSkeletonModel({
   hiddenBoneIds = [],
   showLabels3D = false,
   clippingConfig = { enabled: false, axis: 'x', position: 0, invert: false, showHelper: true },
-  customGltfScene = null,
+  measureMode = 'off',
+  onMeasureClick,
   onBoundsComputed
 }) {
   const { gl } = useThree();
@@ -216,13 +217,13 @@ export default function CanineSkeletonModel({
 
   // Clone scenes & create cortical bone materials for all 115 bone meshes
   const preparedData = useMemo(() => {
-    const sourceScene = customGltfScene ? customGltfScene.clone(true) : skeletalGltf.scene.clone(true);
+    const sourceScene = skeletalGltf.scene.clone(true);
     const skinScene = integumentaryGltf.scene.clone(true);
 
     // Apply model transform onto temporary wrapper to compute exact scene-world bounding boxes
     const tempWrapper = new THREE.Group();
-    tempWrapper.scale.setScalar(customGltfScene ? 1.5 : MODEL_SCALE);
-    tempWrapper.position.set(0, customGltfScene ? -0.5 : MODEL_Y_OFFSET, 0);
+    tempWrapper.scale.setScalar(MODEL_SCALE);
+    tempWrapper.position.set(0, MODEL_Y_OFFSET, 0);
     tempWrapper.add(sourceScene);
     tempWrapper.updateMatrixWorld(true);
     const invSourceRoot = sourceScene.matrixWorld.clone().invert();
@@ -236,27 +237,25 @@ export default function CanineSkeletonModel({
       if (!child.isMesh) return;
 
       // Prepare morphable Float32 buffers for Skull, Mandible & Hyoid on standard 115-bone model
-      if (!customGltfScene) {
-        const partType =
-          child.name === 'dog_skeletal_skull'
-            ? 'skull'
-            : child.name === 'dog_skeletal_mandible'
-            ? 'mandible'
-            : child.name === 'dog_skeletal_hyoid'
-            ? 'hyoid'
-            : null;
-        if (partType) {
-          const origLocalPositions = prepareMorphableGeometry(child);
-          const sceneMatrix = invSourceRoot.clone().multiply(child.matrixWorld);
-          morphTargets.push({
-            mesh: child,
-            partType,
-            boneId: partType,
-            origLocalPositions,
-            sceneMatrix,
-            invSceneMatrix: sceneMatrix.clone().invert()
-          });
-        }
+      const partType =
+        child.name === 'dog_skeletal_skull'
+          ? 'skull'
+          : child.name === 'dog_skeletal_mandible'
+          ? 'mandible'
+          : child.name === 'dog_skeletal_hyoid'
+          ? 'hyoid'
+          : null;
+      if (partType) {
+        const origLocalPositions = prepareMorphableGeometry(child);
+        const sceneMatrix = invSourceRoot.clone().multiply(child.matrixWorld);
+        morphTargets.push({
+          mesh: child,
+          partType,
+          boneId: partType,
+          origLocalPositions,
+          sceneMatrix,
+          invSceneMatrix: sceneMatrix.clone().invert()
+        });
       }
 
       const geom = child.geometry;
@@ -279,22 +278,7 @@ export default function CanineSkeletonModel({
       const hasVertexColors = Boolean(geom && geom.attributes && geom.attributes.color);
 
       // Map GLB node name -> Bone Structure
-      let meta = MESH_TO_BONE_MAP[child.name];
-      if (!meta && customGltfScene) {
-        const lower = (child.name || '').toLowerCase();
-        const fallback = CANINE_BONES.find(
-          (b) => lower.includes(b.id.replace('-', '_')) || lower.includes(b.id)
-        ) || CANINE_BONES[0];
-        meta = {
-          boneId: fallback.id,
-          bone: fallback,
-          meshName: child.name,
-          shortLabel: child.name,
-          labelTh: `${fallback.nameTh} (${child.name})`,
-          labelEn: child.name,
-          side: lower.endsWith('_l') ? 'L' : lower.endsWith('_r') ? 'R' : 'M'
-        };
-      }
+      const meta = MESH_TO_BONE_MAP[child.name];
       if (!meta) return;
 
       // Compute exact scene-world bounding box
@@ -389,7 +373,7 @@ export default function CanineSkeletonModel({
         child.visible = false;
         return;
       }
-      if (!customGltfScene && child.name.includes('skin')) {
+      if (child.name.includes('skin')) {
         const origLocalPositions = prepareMorphableGeometry(child);
         const sceneMatrix = invSkinRoot.clone().multiply(child.matrixWorld);
         morphTargets.push({
@@ -428,12 +412,12 @@ export default function CanineSkeletonModel({
       skinMaterials,
       bounds: { bones: boundsBones, meshes: boundsMeshes }
     };
-  }, [skeletalGltf, integumentaryGltf, customGltfScene]);
+  }, [skeletalGltf, integumentaryGltf]);
 
   // Apply real-time 3D Craniofacial Morphometry (Brachycephalic / Mesocephalic / Dolichocephalic)
   // to Skull, Mandible, Hyoid, and Body Contour Skin while keeping C1 Atlas & TMJ 100% articulated!
   useEffect(() => {
-    if (!customGltfScene && preparedData.morphTargets?.length) {
+    if (preparedData.morphTargets?.length) {
       const worldWrapperMat = new THREE.Matrix4()
         .makeTranslation(0, MODEL_Y_OFFSET, 0)
         .multiply(new THREE.Matrix4().makeScale(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE));
@@ -477,7 +461,7 @@ export default function CanineSkeletonModel({
         meshes: { ...preparedData.bounds.meshes }
       });
     }
-  }, [preparedData, cephalicType, customGltfScene, onBoundsComputed]);
+  }, [preparedData, cephalicType, onBoundsComputed]);
 
   // Dispose custom materials cleanly on unmount
   useEffect(() => {
@@ -640,8 +624,7 @@ export default function CanineSkeletonModel({
     ghostOpacity,
     hiddenBoneIds,
     clippingConfig,
-    clippingPlane,
-    customGltfScene
+    clippingPlane
   ]);
 
   // Smoothly animate Exploded View across all 115 individual bone meshes
@@ -675,7 +658,7 @@ export default function CanineSkeletonModel({
     e.stopPropagation();
     const meta = e.object?.userData?.atlasMeta;
     if (!meta) return;
-    document.body.style.cursor = 'pointer';
+    document.body.style.cursor = measureMode !== 'off' ? 'crosshair' : 'pointer';
     setHoveredSubPiece(meta);
     if (onHoverBone) onHoverBone(meta.boneId);
   };
@@ -691,6 +674,18 @@ export default function CanineSkeletonModel({
     e.stopPropagation();
     const meta = e.object?.userData?.atlasMeta;
     if (!meta) return;
+
+    // Measurement tool takes precedence when active
+    if (measureMode !== 'off' && onMeasureClick) {
+      onMeasureClick({
+        point: [e.point.x, e.point.y, e.point.z],
+        boneId: meta.boneId,
+        boneName: meta.bone.nameTh,
+        meshName: meta.meshName
+      });
+      return;
+    }
+
     if (onSelectBone) {
       // If structure has multiple sub-pieces and is already selected, clicking a specific rib/vertebra/L-R selects that sub-piece;
       // clicking a new structure selects the structure AND remembers which sub-piece was clicked!
@@ -725,10 +720,10 @@ export default function CanineSkeletonModel({
   return (
     <group ref={rootGroupRef}>
       {/* Bvh accelerates raycasting across 230k+ triangles to <0.2ms */}
-      <Bvh key={`${cephalicType}-${Boolean(customGltfScene)}`} firstHitOnly>
+      <Bvh key={cephalicType} firstHitOnly>
         <group
-          scale={customGltfScene ? 1.5 : MODEL_SCALE}
-          position={[0, customGltfScene ? -0.5 : MODEL_Y_OFFSET, 0]}
+          scale={MODEL_SCALE}
+          position={[0, MODEL_Y_OFFSET, 0]}
           onPointerOver={handlePointerOver}
           onPointerOut={handlePointerOut}
           onClick={handleClick}

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import { Megaphone, X } from 'lucide-react';
 
 import CanineCanvas from './components/3d/CanineCanvas';
 import Header from './components/ui/Header';
@@ -11,30 +10,49 @@ import {
   CephalicFloatingSwitcher,
   CephalicComparisonInspector
 } from './components/ui/CephalicControlBar';
+import MeasurementControlBar from './components/ui/MeasurementControlBar';
 import SearchCommandModal from './components/ui/SearchCommandModal';
 import WikiAtlasModal from './components/ui/WikiAtlasModal';
 import JourneysModal, { ActiveJourneyBanner } from './components/ui/JourneysModal';
-import FirebaseModal from './components/ui/FirebaseModal';
 import PathologyModal from './components/ui/PathologyModal';
 import QuizModal from './components/ui/QuizModal';
-import BlenderGuideModal from './components/ui/BlenderGuideModal';
+import AuthGateScreen from './components/ui/AuthGateScreen';
+import AdminDashboardView from './components/ui/AdminDashboardView';
 
-import { CANINE_BONES } from './data/canineSkeletonData';
+import { CANINE_BONES, VET_PATHOLOGIES } from './data/canineSkeletonData';
 import {
   isConnectedToFirebase,
-  fetchAllBones,
+  subscribeToAuthChanges,
+  logoutUser,
+  fetchCatalogBundle,
+  DEFAULT_ATLAS_SETTINGS,
   getStudiedBones,
   toggleStudiedBone,
   getBookmarkedBones,
   toggleBookmarkBone
 } from './services/firebase';
 
+const BANNER_COLOR_MAP = {
+  blue: 'bg-blue-600 text-white',
+  emerald: 'bg-emerald-600 text-white',
+  amber: 'bg-amber-500 text-slate-950',
+  rose: 'bg-rose-600 text-white'
+};
+
 export default function App() {
   // Theme: 'light' (CHAi Clinical Light) | 'dark' (Radiology Dark Studio)
   const [theme, setTheme] = useState(() => localStorage.getItem('chai_canine_theme') || 'light');
 
-  // Osteology Dataset & Selection
+  // Authentication & Role State (`jirawat.s@msu.ac.th` -> Super Admin)
+  const [authLoading, setAuthLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Osteology Dataset, Pathologies & Portal Settings
   const [bones, setBones] = useState(CANINE_BONES);
+  const [pathologies, setPathologies] = useState(VET_PATHOLOGIES);
+  const [portalSettings, setPortalSettings] = useState(DEFAULT_ATLAS_SETTINGS);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
   const [selectedBoneId, setSelectedBoneId] = useState('skull');
   const [selectedMeshName, setSelectedMeshName] = useState(null);
   const [hoveredBoneId, setHoveredBoneId] = useState(null);
@@ -67,23 +85,27 @@ export default function App() {
 
   // UI & Study Progress
   const [isTreeOpen, setIsTreeOpen] = useState(true);
-  const [studiedBoneIds, setStudiedBoneIds] = useState(() => getStudiedBones());
-  const [bookmarkedBoneIds, setBookmarkedBoneIds] = useState(() => getBookmarkedBones());
+  const [studiedBoneIds, setStudiedBoneIds] = useState([]);
+  const [bookmarkedBoneIds, setBookmarkedBoneIds] = useState([]);
   const [isFirebaseActive, setIsFirebaseActive] = useState(isConnectedToFirebase());
-  const [customGltfScene, setCustomGltfScene] = useState(null);
+
+  // 3D Distance Caliper & Orthopedic Angle Measurement Tools
+  const [measureMode, setMeasureMode] = useState('off'); // 'off' | 'distance' | 'angle'
+  const [measurePoints, setMeasurePoints] = useState([]);
 
   // Active Learning Journey
   const [activeJourney, setActiveJourney] = useState(null);
   const [journeyStepIndex, setJourneyStepIndex] = useState(0);
 
-  // Modals
+  // Modals & Admin Studio
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isJourneysOpen, setIsJourneysOpen] = useState(false);
   const [isWikiGalleryOpen, setIsWikiGalleryOpen] = useState(false);
-  const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
   const [isPathologyModalOpen, setIsPathologyModalOpen] = useState(false);
   const [isQuizModalOpen, setIsQuizModalOpen] = useState(false);
-  const [isBlenderModalOpen, setIsBlenderModalOpen] = useState(false);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [adminInitialTab, setAdminInitialTab] = useState('overview');
+  const [adminInitialBoneId, setAdminInitialBoneId] = useState('skull');
 
   const screenshotFnRef = useRef(null);
 
@@ -98,11 +120,53 @@ export default function App() {
     localStorage.setItem('chai_canine_theme', theme);
   }, [theme]);
 
-  // Global keyboard shortcut: '/' or Ctrl+K opens instant search
+  // Subscribe to Firebase Authentication & RBAC Role (`jirawat.s@msu.ac.th` -> Super Admin)
   useEffect(() => {
+    const unsubscribe = subscribeToAuthChanges((profile) => {
+      setCurrentUser(profile);
+      setAuthLoading(false);
+      if (profile) {
+        setStudiedBoneIds(getStudiedBones());
+        setBookmarkedBoneIds(getBookmarkedBones());
+      } else {
+        setStudiedBoneIds([]);
+        setBookmarkedBoneIds([]);
+        setIsAdminModalOpen(false);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const applyCatalogBundle = useCallback((bundle) => {
+    if (!bundle) return;
+    if (bundle.bones?.length) setBones(bundle.bones);
+    if (bundle.pathologies?.length) setPathologies(bundle.pathologies);
+    if (bundle.settings) {
+      setPortalSettings(bundle.settings);
+      if (bundle.settings.defaultCephalicType) {
+        setCephalicType(bundle.settings.defaultCephalicType);
+      }
+    }
+  }, []);
+
+  // Load Cloud Catalog once authenticated (<= 1 Read per 24h via LocalStorage cache)
+  useEffect(() => {
+    if (!currentUser) return;
+    let active = true;
+    fetchCatalogBundle(false).then((bundle) => {
+      if (active) applyCatalogBundle(bundle);
+    });
+    return () => {
+      active = false;
+    };
+  }, [currentUser?.uid, isFirebaseActive, applyCatalogBundle]);
+
+  // Global keyboard shortcut: '/' or Ctrl+K opens instant search when signed in
+  useEffect(() => {
+    if (!currentUser) return;
     const onKeyDown = (e) => {
       const tag = document.activeElement?.tagName?.toLowerCase();
-      const isTyping = tag === 'input' || tag === 'textarea';
+      const isTyping = tag === 'input' || tag === 'textarea' || tag === 'select';
       if ((e.key === '/' && !isTyping) || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k')) {
         e.preventDefault();
         setIsSearchOpen(true);
@@ -110,18 +174,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
-
-  // Load bones (merges Firestore overrides if connected)
-  useEffect(() => {
-    let active = true;
-    fetchAllBones().then((data) => {
-      if (active && data?.length) setBones(data);
-    });
-    return () => {
-      active = false;
-    };
-  }, [isFirebaseActive]);
+  }, [currentUser]);
 
   const selectedBone = bones.find((b) => b.id === selectedBoneId) || null;
 
@@ -198,9 +251,9 @@ export default function App() {
       const primaryId = pathology.affectedBones[0];
       setSelectedBoneId(primaryId);
       setSelectedMeshName(null);
-      const toHide = CANINE_BONES.map((b) => b.id).filter(
-        (id) => !pathology.affectedBones.includes(id)
-      );
+      const toHide = bones
+        .map((b) => b.id)
+        .filter((id) => !pathology.affectedBones.includes(id));
       setHiddenBoneIds(toHide);
       setIsolatedMode(false);
       setFocusTrigger((n) => n + 1);
@@ -230,43 +283,96 @@ export default function App() {
     applyJourneyStep(activeJourney, nextIndex);
   };
 
-  // Custom Blender GLB Drag & Drop with Meshopt support
-  const handleDropModel = (file) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const loader = new GLTFLoader();
-      loader.setMeshoptDecoder(MeshoptDecoder);
-      loader.parse(
-        e.target.result,
-        '',
-        (gltf) => {
-          setCustomGltfScene(gltf.scene);
-        },
-        (err) => {
-          console.error('Error parsing dropped GLB:', err);
-          alert('ไม่สามารถอ่านไฟล์ .glb/.gltf นี้ได้ กรุณาตรวจสอบการส่งออกจาก Blender');
+  // 3D Point Measurement click handler on bone mesh surface
+  const handleMeasureClick = useCallback((pointData) => {
+    setMeasurePoints((prev) => {
+      if (measureMode === 'distance') {
+        if (prev.length >= 2) {
+          return [pointData];
         }
-      );
-    };
-    reader.readAsArrayBuffer(file);
+        return [...prev, pointData];
+      }
+      if (measureMode === 'angle') {
+        if (prev.length >= 3) {
+          return [pointData];
+        }
+        return [...prev, pointData];
+      }
+      return prev;
+    });
+  }, [measureMode]);
+
+  const handleOpenAdminForBone = (boneId) => {
+    setAdminInitialBoneId(boneId);
+    setAdminInitialTab('bones');
+    setIsAdminModalOpen(true);
   };
+
+  // ==================== AUTHENTICATION & ACCESS GATE ====================
+  const isSuspended = currentUser?.status === 'suspended' && !currentUser?.isSuperAdmin;
+  const isMaintenanceBlocked =
+    Boolean(portalSettings?.maintenanceMode) && currentUser && !currentUser.isAdmin;
+
+  if (authLoading || !currentUser || isSuspended || isMaintenanceBlocked) {
+    return (
+      <AuthGateScreen
+        theme={theme}
+        onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
+        authLoading={authLoading}
+        suspendedUser={isSuspended ? currentUser : null}
+        maintenanceBlockedUser={isMaintenanceBlocked ? currentUser : null}
+        onLogout={logoutUser}
+      />
+    );
+  }
+
+  const showAnnouncement =
+    !bannerDismissed &&
+    portalSettings?.announcementEnabled &&
+    Boolean(portalSettings?.announcementText?.trim());
 
   return (
     <div className="relative w-screen h-screen overflow-hidden flex flex-col font-sans">
+      {/* Optional Admin Announcement Banner */}
+      {showAnnouncement && (
+        <div
+          className={`relative z-30 px-4 py-1.5 text-xs font-semibold flex items-center justify-between gap-2 ${
+            BANNER_COLOR_MAP[portalSettings.announcementColor] || BANNER_COLOR_MAP.blue
+          }`}
+        >
+          <div className="flex items-center gap-2 truncate mx-auto">
+            <Megaphone className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{portalSettings.announcementText}</span>
+          </div>
+          <button
+            onClick={() => setBannerDismissed(true)}
+            className="opacity-80 hover:opacity-100 shrink-0"
+            title="ซ่อนแถบประกาศ"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Top Clinical Navigation Bar */}
       <Header
         theme={theme}
         onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
+        portalSettings={portalSettings}
+        currentUser={currentUser}
+        onOpenAdminModal={() => {
+          setAdminInitialTab('overview');
+          setAdminInitialBoneId(selectedBoneId || 'skull');
+          setIsAdminModalOpen(true);
+        }}
+        onLogout={logoutUser}
         cephalicCompareMode={cephalicCompareMode}
         onToggleCephalicCompareMode={() => setCephalicCompareMode((c) => !c)}
         onOpenSearch={() => setIsSearchOpen(true)}
         onOpenJourneys={() => setIsJourneysOpen(true)}
-        onOpenWikiGallery={() => setIsWikiGalleryOpen(true)}
+        onOpenWikiGallery={() => setIsWikiGalleryOpen(false) || setIsWikiGalleryOpen(true)}
         onOpenPathologyModal={() => setIsPathologyModalOpen(true)}
         onOpenQuizModal={() => setIsQuizModalOpen(true)}
-        onOpenBlenderModal={() => setIsBlenderModalOpen(true)}
-        onOpenFirebaseModal={() => setIsFirebaseModalOpen(true)}
-        isFirebaseActive={isFirebaseActive}
         studiedCount={studiedBoneIds.length}
       />
 
@@ -298,12 +404,21 @@ export default function App() {
           focusTrigger={focusTrigger}
           autoRotate={autoRotate}
           onResetPreset={() => setCameraPreset(null)}
-          customGltfScene={customGltfScene}
-          onDropModel={handleDropModel}
-          onClearCustomModel={() => setCustomGltfScene(null)}
+          measureMode={measureMode}
+          measurePoints={measurePoints}
+          onMeasureClick={handleMeasureClick}
           onRegisterScreenshot={(fn) => {
             screenshotFnRef.current = fn;
           }}
+        />
+
+        {/* Veterinary 3D Caliper & Orthopedic Angle Measurement Floating Dock */}
+        <MeasurementControlBar
+          measureMode={measureMode}
+          onChangeMode={setMeasureMode}
+          points={measurePoints}
+          onClearPoints={() => setMeasurePoints([])}
+          onClose={() => setMeasureMode('off')}
         />
 
         {/* Floating 3 Cephalic Types Switcher & Side-by-Side 3D Studio Bar */}
@@ -336,6 +451,7 @@ export default function App() {
         {/* Left Skeletal Inventory & Cross-Section Slicer */}
         {!cephalicCompareMode && (
           <AnatomyHierarchyTree
+            bones={bones}
             selectedBoneId={selectedBoneId}
             onSelectBone={handleSelectBone}
             hiddenBoneIds={hiddenBoneIds}
@@ -362,6 +478,10 @@ export default function App() {
           selectedBone && (
             <BoneDetailPanel
               bone={selectedBone}
+              bones={bones}
+              pathologies={pathologies}
+              isAdmin={Boolean(currentUser?.isAdmin)}
+              onEditBoneInAdmin={handleOpenAdminForBone}
               cephalicType={cephalicType}
               onChangeCephalicType={handleChangeCephalicType}
               onOpenCephalicCompare={() => setCephalicCompareMode(true)}
@@ -374,6 +494,8 @@ export default function App() {
               onFocusBone={() => setFocusTrigger((n) => n + 1)}
               isolatedMode={isolatedMode}
               onToggleIsolatedMode={() => setIsolatedMode((iso) => !iso)}
+              ghostOpacity={ghostOpacity}
+              onChangeGhostOpacity={setGhostOpacity}
               isStudied={studiedBoneIds.includes(selectedBone.id)}
               onToggleStudied={handleToggleStudied}
               isBookmarked={bookmarkedBoneIds.includes(selectedBone.id)}
@@ -391,11 +513,10 @@ export default function App() {
           onChangeRenderMode={setRenderMode}
           bodyContourMode={bodyContourMode}
           onChangeBodyContourMode={setBodyContourMode}
-          isolatedMode={isolatedMode}
-          onToggleIsolatedMode={() => setIsolatedMode((iso) => !iso)}
-          hasSelectedBone={Boolean(selectedBone)}
-          ghostOpacity={ghostOpacity}
-          onChangeGhostOpacity={setGhostOpacity}
+          measureMode={measureMode}
+          onToggleMeasure={() =>
+            setMeasureMode((m) => (m === 'off' ? 'distance' : 'off'))
+          }
           showLabels3D={showLabels3D}
           onToggleLabels3D={() => setShowLabels3D((s) => !s)}
           autoRotate={autoRotate}
@@ -410,6 +531,8 @@ export default function App() {
       <SearchCommandModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
+        bones={bones}
+        pathologies={pathologies}
         onSelectBone={handleSelectBone}
         onSelectPathology={handleSelectPathology}
         onSelectCephalicType={(typeId) => {
@@ -433,6 +556,8 @@ export default function App() {
       <PathologyModal
         isOpen={isPathologyModalOpen}
         onClose={() => setIsPathologyModalOpen(false)}
+        pathologies={pathologies}
+        bones={bones}
         onSelectPathology={handleSelectPathology}
       />
 
@@ -442,15 +567,24 @@ export default function App() {
         onSelectBone={handleSelectBone}
       />
 
-      <BlenderGuideModal
-        isOpen={isBlenderModalOpen}
-        onClose={() => setIsBlenderModalOpen(false)}
-      />
-
-      <FirebaseModal
-        isOpen={isFirebaseModalOpen}
-        onClose={() => setIsFirebaseModalOpen(false)}
-        onConfigUpdated={(active) => setIsFirebaseActive(active)}
+      <AdminDashboardView
+        isOpen={isAdminModalOpen}
+        onClose={() => setIsAdminModalOpen(false)}
+        currentUser={currentUser}
+        theme={theme}
+        onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
+        onLogout={logoutUser}
+        bones={bones}
+        pathologies={pathologies}
+        portalSettings={portalSettings}
+        initialTab={adminInitialTab}
+        initialBoneId={adminInitialBoneId}
+        onCatalogUpdated={applyCatalogBundle}
+        onJumpToBone3D={(boneId) => {
+          setIsAdminModalOpen(false);
+          handleSelectBone(boneId, null);
+          setFocusTrigger((n) => n + 1);
+        }}
       />
     </div>
   );

@@ -3,8 +3,17 @@ import { X, Stethoscope, Eye, Activity } from 'lucide-react';
 import { VET_PATHOLOGIES, BONE_BY_ID } from '../../data/canineSkeletonData';
 import { CANINE_MEDIA_CATALOG } from '../../data/canineMediaData';
 
-export default function PathologyModal({ isOpen, onClose, onSelectPathology }) {
+export default function PathologyModal({
+  isOpen,
+  onClose,
+  onSelectPathology,
+  pathologies = VET_PATHOLOGIES,
+  bones = []
+}) {
   if (!isOpen) return null;
+
+  const liveBoneMap =
+    bones.length > 0 ? Object.fromEntries(bones.map((b) => [b.id, b])) : BONE_BY_ID;
 
   return (
     <div
@@ -26,7 +35,7 @@ export default function PathologyModal({ isOpen, onClose, onSelectPathology }) {
                 คลินิกโรคกระดูกและข้อสุนัข (Canine Orthopedic Pathologies)
               </h2>
               <p className="text-[11px] chai-text-secondary">
-                เปรียบเทียบฟิล์มเอกซเรย์ทางคลินิกกับตำแหน่งกระดูกจริงในโมเดล 3 มิติ
+                เปรียบเทียบฟิล์มเอกซเรย์ทางคลินิกกับตำแหน่งกระดูกจริงในโมเดล 3 มิติ ({pathologies.length} รายการ)
               </p>
             </div>
           </div>
@@ -41,25 +50,28 @@ export default function PathologyModal({ isOpen, onClose, onSelectPathology }) {
 
         {/* Pathology Cards */}
         <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
-          {VET_PATHOLOGIES.map((pathItem) => {
+          {pathologies.map((pathItem) => {
             const media = pathItem.mediaId ? CANINE_MEDIA_CATALOG[pathItem.mediaId] : null;
+            const imgSrc = pathItem.customImageUrl || media?.url || null;
             return (
               <div
                 key={pathItem.id}
                 className="rounded-2xl chai-card overflow-hidden flex flex-col justify-between hover:border-rose-500/50 transition"
               >
                 <div>
-                  {media && (
+                  {imgSrc && (
                     <div className="h-36 bg-slate-950 flex items-center justify-center p-1.5 relative">
                       <img
-                        src={media.url}
+                        src={imgSrc}
                         alt={pathItem.nameTh}
                         loading="lazy"
                         className="max-h-full max-w-full object-contain rounded"
                       />
-                      <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white">
-                        {pathItem.severity}
-                      </span>
+                      {pathItem.severity && (
+                        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white">
+                          {pathItem.severity}
+                        </span>
+                      )}
                     </div>
                   )}
 
@@ -88,8 +100,8 @@ export default function PathologyModal({ isOpen, onClose, onSelectPathology }) {
                     )}
 
                     <div className="flex flex-wrap gap-1 pt-1">
-                      {pathItem.affectedBones.map((bId) => {
-                        const bone = BONE_BY_ID[bId];
+                      {(pathItem.affectedBones || []).map((bId) => {
+                        const bone = liveBoneMap[bId];
                         if (!bone) return null;
                         return (
                           <span

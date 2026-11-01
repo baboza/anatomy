@@ -16,7 +16,7 @@ export default defineConfig({
           'react-vendor': ['react', 'react-dom'],
           'three-core': ['three'],
           'r3f-drei': ['@react-three/fiber', '@react-three/drei'],
-          'firebase-sdk': ['firebase/app', 'firebase/firestore', 'firebase/auth']
+          'firebase-sdk': ['firebase/app', 'firebase/auth', 'firebase/firestore/lite']
         }
       }
     }

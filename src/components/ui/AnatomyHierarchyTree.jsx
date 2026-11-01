@@ -20,6 +20,7 @@ import {
 } from '../../data/canineSkeletonData';
 
 export default function AnatomyHierarchyTree({
+  bones = CANINE_BONES,
   selectedBoneId,
   onSelectBone,
   hiddenBoneIds = [],
@@ -32,6 +33,10 @@ export default function AnatomyHierarchyTree({
   isOpen,
   onToggleOpen
 }) {
+  const liveBoneMap = React.useMemo(
+    () => (bones?.length ? Object.fromEntries(bones.map((b) => [b.id, b])) : BONE_BY_ID),
+    [bones]
+  );
   const [expandedGroups, setExpandedGroups] = useState({
     axial_head: true,
     axial_spine: true,
@@ -145,7 +150,7 @@ export default function AnatomyHierarchyTree({
       <div className="flex-1 overflow-y-auto p-2.5 space-y-2 text-xs">
         {SKELETON_HIERARCHY.map((group) => {
           const bonesInGroup = group.boneIds
-            .map((id) => BONE_BY_ID[id])
+            .map((id) => liveBoneMap[id])
             .filter(Boolean)
             .filter((bone) => {
               if (filterTab === 'axial') return bone.category === 'axial' || bone.category === 'visceral';

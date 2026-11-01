@@ -10,6 +10,7 @@ import {
 import CanineSkeletonModel from './CanineSkeletonModel';
 import CephalicComparison3D from './CephalicComparison3D';
 import CameraController from './CameraController';
+import MeasurementOverlay3D from './MeasurementOverlay3D';
 
 function LoadingSkeletonOverlay() {
   const { progress } = useProgress();
@@ -78,74 +79,21 @@ export default function CanineCanvas({
   focusTrigger,
   autoRotate,
   onResetPreset,
-  customGltfScene,
-  onDropModel,
-  onClearCustomModel,
+  measureMode = 'off',
+  measurePoints = [],
+  onMeasureClick,
   onRegisterScreenshot
 }) {
-  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [boundsMap, setBoundsMap] = useState(null);
 
   const handleBoundsComputed = useCallback((bounds) => {
     setBoundsMap(bounds);
   }, []);
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDraggingFile(true);
-  };
-
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setIsDraggingFile(false);
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDraggingFile(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file && (file.name.endsWith('.glb') || file.name.endsWith('.gltf'))) {
-      if (onDropModel) onDropModel(file);
-    }
-  };
-
   const isLight = theme === 'light';
 
   return (
-    <div
-      className="relative w-full h-full chai-viewport-bg transition-colors duration-300"
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      {/* Drag & Drop Custom Blender GLB Overlay */}
-      {isDraggingFile && (
-        <div className="absolute inset-0 z-50 bg-blue-600/15 backdrop-blur-sm border-4 border-dashed border-blue-500 flex items-center justify-center pointer-events-none">
-          <div className="chai-panel px-8 py-6 rounded-2xl text-center">
-            <p className="text-lg font-bold text-blue-600 dark:text-sky-400">
-              วางไฟล์ .glb / .gltf จาก Blender เพื่อเปิดในสตูดิโอ 3 มิติ
-            </p>
-            <p className="text-xs chai-text-secondary mt-1">
-              รองรับทั้งไฟล์มาตรฐานและไฟล์บีบอัด Meshopt / Quantized
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Custom Model Active Pill */}
-      {customGltfScene && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 chai-panel px-3.5 py-1.5 rounded-full flex items-center gap-2.5 text-xs">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="font-semibold">กำลังแสดงโมเดล .GLB ที่นำเข้าเอง</span>
-          <button
-            onClick={onClearCustomModel}
-            className="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[11px] hover:bg-blue-700 transition"
-          >
-            กลับสู่โมเดลมาตรฐาน 115 ชิ้น
-          </button>
-        </div>
-      )}
-
+    <div className="relative w-full h-full chai-viewport-bg transition-colors duration-300">
       <Canvas
         shadows
         dpr={[1, 2]}
@@ -156,7 +104,9 @@ export default function CanineCanvas({
           powerPreference: 'high-performance'
         }}
         onPointerMissed={() => {
-          if (!cephalicCompareMode && onSelectBone) onSelectBone(null, null);
+          if (measureMode === 'off' && !cephalicCompareMode && onSelectBone) {
+            onSelectBone(null, null);
+          }
         }}
       >
         {/* Multi-directional Veterinary Museum Osteology Lighting */}
@@ -254,8 +204,16 @@ export default function CanineCanvas({
                 hiddenBoneIds={hiddenBoneIds}
                 showLabels3D={showLabels3D}
                 clippingConfig={clippingConfig}
-                customGltfScene={customGltfScene}
+                measureMode={measureMode}
+                onMeasureClick={onMeasureClick}
                 onBoundsComputed={handleBoundsComputed}
+              />
+
+              {/* 3D Calipers & Orthopedic Angles Layer */}
+              <MeasurementOverlay3D
+                measureMode={measureMode}
+                points={measurePoints}
+                theme={theme}
               />
 
               {/* Soft Studio Floor Shadow beneath Canine Paws */}

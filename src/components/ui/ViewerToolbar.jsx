@@ -2,11 +2,11 @@ import React from 'react';
 import {
   Expand,
   RotateCcw,
-  Eye,
   Tag,
   Camera,
   RefreshCw,
-  Dog
+  Dog,
+  Ruler
 } from 'lucide-react';
 
 export default function ViewerToolbar({
@@ -16,11 +16,8 @@ export default function ViewerToolbar({
   onChangeRenderMode,
   bodyContourMode,
   onChangeBodyContourMode,
-  isolatedMode,
-  onToggleIsolatedMode,
-  hasSelectedBone,
-  ghostOpacity,
-  onChangeGhostOpacity,
+  measureMode = 'off',
+  onToggleMeasure,
   showLabels3D,
   onToggleLabels3D,
   autoRotate,
@@ -122,35 +119,19 @@ export default function ViewerToolbar({
         ))}
       </div>
 
-      {/* 5. Isolate + Ghost Opacity */}
-      {hasSelectedBone && (
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl chai-card">
-          <button
-            onClick={onToggleIsolatedMode}
-            className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition ${
-              isolatedMode
-                ? 'bg-blue-600 text-white'
-                : 'chai-text-primary hover:text-blue-600'
-            }`}
-            title="แสดงเฉพาะโครงสร้างที่เลือก"
-          >
-            <Eye className="w-3.5 h-3.5" />
-            <span>เฉพาะชิ้นนี้</span>
-          </button>
-          {isolatedMode && (
-            <input
-              type="range"
-              min={0}
-              max={0.45}
-              step={0.02}
-              value={ghostOpacity}
-              onChange={(e) => onChangeGhostOpacity(parseFloat(e.target.value))}
-              className="w-14 h-1.5 cursor-pointer"
-              title="ปรับความโปร่งแสงของกระดูกข้างเคียง"
-            />
-          )}
-        </div>
-      )}
+      {/* 5. 3D Caliper & Orthopedic Angle Measurement Tool */}
+      <button
+        onClick={onToggleMeasure}
+        className={`px-2.5 py-1.5 rounded-xl text-[11px] font-semibold flex items-center gap-1.5 border transition-all ${
+          measureMode !== 'off'
+            ? 'bg-amber-500/15 border-amber-500/50 text-amber-700 dark:text-amber-300 shadow-sm'
+            : 'chai-card chai-text-secondary hover:chai-text-primary'
+        }`}
+        title="เปิด/ปิดเครื่องมือวัดระยะ 3D และมุมกระดูกสัตว์แพทย์ (Caliper & Orthopedic Angles)"
+      >
+        <Ruler className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+        <span className="hidden sm:inline">ไม้บรรทัด 3D</span>
+      </button>
 
       {/* 6. Utility Icon Buttons */}
       <div className="flex items-center gap-1">

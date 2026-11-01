@@ -6,6 +6,8 @@ import { CEPHALIC_TYPE_ORDER, CEPHALIC_TYPES } from '../../utils/cephalicMorph';
 export default function SearchCommandModal({
   isOpen,
   onClose,
+  bones: bonesProp = CANINE_BONES,
+  pathologies: pathologiesProp = VET_PATHOLOGIES,
   onSelectBone,
   onSelectPathology,
   onSelectCephalicType
@@ -25,9 +27,9 @@ export default function SearchCommandModal({
     if (!q) {
       return {
         cephalics: CEPHALIC_TYPE_ORDER.map((id) => CEPHALIC_TYPES[id]),
-        bones: CANINE_BONES.slice(0, 10),
+        bones: bonesProp.slice(0, 10),
         subPieces: [],
-        pathologies: VET_PATHOLOGIES.slice(0, 4)
+        pathologies: pathologiesProp.slice(0, 4)
       };
     }
 
@@ -43,7 +45,7 @@ export default function SearchCommandModal({
         c.breedsTh.some((b) => b.toLowerCase().includes(q))
     );
 
-    const bones = CANINE_BONES.filter(
+    const bones = bonesProp.filter(
       (b) =>
         b.nameTh.toLowerCase().includes(q) ||
         b.nameEn.toLowerCase().includes(q) ||
@@ -53,7 +55,7 @@ export default function SearchCommandModal({
     );
 
     const subPieces = [];
-    for (const b of CANINE_BONES) {
+    for (const b of bonesProp) {
       if (b.meshes.length <= 1) continue;
       for (const sp of b.subPieces || []) {
         if (
@@ -69,15 +71,15 @@ export default function SearchCommandModal({
       if (subPieces.length >= 16) break;
     }
 
-    const pathologies = VET_PATHOLOGIES.filter(
+    const pathologies = pathologiesProp.filter(
       (p) =>
         p.nameTh.toLowerCase().includes(q) ||
-        p.nameEn.toLowerCase().includes(q) ||
+        (p.nameEn || '').toLowerCase().includes(q) ||
         p.descriptionTh.toLowerCase().includes(q)
     );
 
     return { cephalics, bones, subPieces, pathologies };
-  }, [query]);
+  }, [query, bonesProp, pathologiesProp]);
 
   if (!isOpen) return null;
 

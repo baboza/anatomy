@@ -4,4 +4,5 @@ dist-ssr
 *.local
 .env
 .env.*
+.firebase
 powershell.bat

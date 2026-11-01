@@ -13,7 +13,8 @@ import {
   Maximize2,
   ExternalLink,
   Layers,
-  Columns3
+  Columns3,
+  Edit3
 } from 'lucide-react';
 import { BONE_BY_ID, VET_PATHOLOGIES } from '../../data/canineSkeletonData';
 import { CANINE_MEDIA_CATALOG } from '../../data/canineMediaData';
@@ -36,6 +37,10 @@ const MEDIA_BADGES = {
 
 export default function BoneDetailPanel({
   bone,
+  bones = [],
+  pathologies = VET_PATHOLOGIES,
+  isAdmin = false,
+  onEditBoneInAdmin,
   cephalicType = 'mesocephalic',
   onChangeCephalicType,
   onOpenCephalicCompare,
@@ -45,6 +50,8 @@ export default function BoneDetailPanel({
   onFocusBone,
   isolatedMode,
   onToggleIsolatedMode,
+  ghostOpacity = 0.14,
+  onChangeGhostOpacity,
   isStudied,
   onToggleStudied,
   isBookmarked,
@@ -64,16 +71,21 @@ export default function BoneDetailPanel({
 
   if (!bone) return null;
 
-  const mediaList = (bone.mediaIds || [])
-    .map((id) => CANINE_MEDIA_CATALOG[id])
-    .filter(Boolean);
+  const liveBoneMap =
+    bones.length > 0 ? Object.fromEntries(bones.map((b) => [b.id, b])) : BONE_BY_ID;
 
-  const matchingPathologies = VET_PATHOLOGIES.filter((p) =>
-    p.affectedBones.includes(bone.id)
+  const customMediaList = Array.isArray(bone.customMedia) ? bone.customMedia : [];
+  const mediaList = [
+    ...customMediaList,
+    ...(bone.mediaIds || []).map((id) => CANINE_MEDIA_CATALOG[id]).filter(Boolean)
+  ];
+
+  const matchingPathologies = pathologies.filter((p) =>
+    (p.affectedBones || []).includes(bone.id)
   );
 
   const relatedBones = (bone.relatedIds || [])
-    .map((id) => BONE_BY_ID[id])
+    .map((id) => liveBoneMap[id])
     .filter(Boolean);
 
   const activeSubPiece = selectedMeshName
@@ -106,6 +118,16 @@ export default function BoneDetailPanel({
             </div>
 
             <div className="flex items-center gap-1 shrink-0">
+              {isAdmin && onEditBoneInAdmin && (
+                <button
+                  onClick={() => onEditBoneInAdmin(bone.id)}
+                  className="px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 dark:text-amber-300 text-[10px] font-bold flex items-center gap-1 transition"
+                  title="แก้ไขเนื้อหากระดูกชิ้นนี้ในหน้า Admin"
+                >
+                  <Edit3 className="w-3 h-3" />
+                  <span>แก้ไข</span>
+                </button>
+              )}
               <button
                 onClick={() => onToggleBookmark(bone.id)}
                 className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-800 transition"
@@ -176,6 +198,28 @@ export default function BoneDetailPanel({
               <span>ซูมโฟกัส</span>
             </button>
           </div>
+
+          {/* Ghost Opacity Slider when Isolated Mode is Active */}
+          {isolatedMode && (
+            <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-[11px] animate-fade-in">
+              <span className="text-blue-700 dark:text-sky-300 font-medium text-[10px]">
+                ความโปร่งแสงส่วนอื่น:
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={0.45}
+                step={0.02}
+                value={ghostOpacity}
+                onChange={(e) => onChangeGhostOpacity && onChangeGhostOpacity(parseFloat(e.target.value))}
+                className="w-24 h-1.5 cursor-pointer accent-blue-600"
+                title="ปรับความโปร่งแสงของกระดูกข้างเคียงเมื่อแยกดูเฉพาะชิ้น"
+              />
+              <span className="font-mono text-[10px] w-7 text-right text-blue-600 dark:text-sky-400">
+                {Math.round(ghostOpacity * 100)}%
+              </span>
+            </div>
+          )}
 
           {/* Sub-Piece Selector for Paired or Multi-Segment Structures (e.g. L/R, T1–T13, Ribs 1–13) */}
           {bone.meshes.length > 1 && (

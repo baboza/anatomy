@@ -7,6 +7,19 @@
 
 ---
 
+## 0. กฎข้อบังคับการทำงานประจำโปรเจกต์ (Mandatory Workflow Rules — บันทึกตามคำสั่งผู้ใช้)
+
+> กฎนี้บันทึกไว้ทั้งในไฟล์นี้และไฟล์ [`AGENTS.md`](./AGENTS.md) เพื่อให้ระบบโหลดบังคับใช้อัตโนมัติทุกครั้ง:
+
+1. **เช็คบั๊กและทดสอบการรันผ่าน 100% ทุกครั้งหลังแก้ไขเสร็จ:**
+   - ทุกครั้งหลังแก้โค้ดหรือปรับโมเดล 3D ต้องรันทดสอบ `npm run build` ให้ผ่าน `exit code 0`, ตรวจสอบความถูกต้องของ Buffer/Normals/Imports และทดสอบการโหลดจริงบน `http://localhost:5173/` (`HTTP 200 OK`) ให้มั่นใจว่าทำงานได้สมบูรณ์ 100% ก่อนแจ้งผล
+2. **ห้าม `git push` จนกว่าจะได้รับคำสั่ง:**
+   - **ไม่อนุญาตให้สั่ง `git push` ขึ้น GitHub โดยอัตโนมัติเด็ดขาด** ต้องรอจนกว่าผู้ใช้จะสั่งให้ `push git` อย่างชัดเจนเท่านั้น
+3. **ตรวจสอบโควตา Firebase ไม่ให้มีความเสี่ยงเสียเงิน และใช้ทรัพยากรให้น้อยที่สุดเสมอ (Zero-Cost Spark Policy):**
+   - ใช้ `firebase/firestore/lite` (REST-only ลดขนาด JS Bundle กว่า ~85% และตัดวงจร `onSnapshot` ถาวร), ยุบรวม Catalog ไว้ใน 1 เอกสาร (`1 Read/วัน` ด้วย `24h LocalStorage Cache`), ใช้ `Debounce 2.5s` + `Diff Check` ก่อนเขียนทุกครั้ง, มีตัวตัดวงจรโควตารายวัน (`Quota Circuit Breaker`) และห้ามเก็บไฟล์ `.glb`/รูปภาพบน Firebase Storage เด็ดขาด
+
+---
+
 ## 1. มาตรฐานคุณภาพที่กำหนดไว้ (Core Quality Standard)
 
 1. **ห้ามใช้รูปทรงเรขาคณิตพื้นฐาน (No Primitive Box/Cylinder/Sphere Geometry):**
@@ -65,21 +78,23 @@ c:\xampp\htdocs\ana\
         │   ├── CanineCanvas.jsx            # เวที Three.js, สลับโหมดโครงกระดูก 115 ชิ้น / โหมดเทียบ 3 กะโหลก
         │   ├── CanineSkeletonModel.jsx     # โหลด Meshopt GLB, Morph กะโหลก-กราม-โคนลิ้น-ผิวกายแบบสด, BVH Raycast
         │   ├── CephalicComparison3D.jsx    # สตูดิโอ 3D วางกะโหลกทั้ง 3 ประเภทเรียงคู่กัน + อ้าปาก TMJ + เส้นวัด CI
+        │   ├── MeasurementOverlay3D.jsx    # ระบบไม้บรรทัดวัดระยะ 3D และเครื่องมือวัดมุมกระดูกทางคลินิกสัตวแพทย์ (ป้ายลอย 3D + เส้นวัด)
         │   └── CameraController.jsx        # ระบบบินกล้องนุ่มนวลทั้งโหมดโครงกระดูกเต็มตัวและโหมดเทียบ 3 กะโหลก
         │
         └── ui\
             ├── Header.jsx                  # แถบเมนูบนสไตล์ CHAi Atlas + ปุ่มลัดกะโหลก 3 ประเภท + สลับสี Light/Dark
             ├── CephalicControlBar.jsx      # แถบลอยสลับ Brachy/Meso/Dolichocephalic + แผงวิเคราะห์ดัชนีกะโหลกด้านขวา
+            ├── MeasurementControlBar.jsx   # แผงควบคุมเครื่องมือวัดระยะและมุมกระดูกสัตว์แพทย์ (Norberg Angle, TPA, Inclination)
             ├── SearchCommandModal.jsx      # หน้าต่างค้นหาด่วน (กด '/' หรือ Ctrl+K) ค้นได้ถึงระดับปล้องกระดูกและซี่โครง
             ├── AnatomyHierarchyTree.jsx    # สารบัญกระดูกด้านซ้าย + แถบความก้าวหน้าการเรียน + มีดตัดภาคตัดขวาง 3D
-            ├── BoneDetailPanel.jsx         # แผงข้อมูลด้านขวา 4 แท็บ + ตัวเลือกชิ้นย่อย + Lightbox ขยายฟิล์มเอกซเรย์
-            ├── ViewerToolbar.jsx           # แถบควบคุมลอยด้านล่าง (Explode Slider, Render Modes, เงาลำตัว, มุมกล้อง)
+            ├── BoneDetailPanel.jsx         # แผงข้อมูลด้านขวา 4 แท็บ + ตัวเลือกชิ้นย่อย + ตัวปรับความโปร่งแสงส่วนข้างเคียง
+            ├── ViewerToolbar.jsx           # แถบควบคุมลอยด้านล่าง (Explode Slider, Render Modes, เงาลำตัว, ไม้บรรทัด 3D, มุมกล้อง)
             ├── WikiAtlasModal.jsx          # แกลเลอรีแผนภาพ Wikimedia และฟิล์มเอกซเรย์เต็มรูปแบบพร้อมลิงก์ชี้เป้า 3D
             ├── JourneysModal.jsx           # หน้าต่างเลือกบทเรียนชีวกลศาสตร์เชื่อมโยง 3 มิติ + แถบกำกับขั้นตอน
             ├── PathologyModal.jsx          # คลินิกโรคกระดูกและข้อสุนัขพร้อมฟิล์ม X-Ray เปรียบเทียบ
             ├── QuizModal.jsx               # ระบบแบบทดสอบความรู้กายวิภาคกระดูกสุนัข
-            ├── BlenderGuideModal.jsx       # คู่มือและสคริปต์ Python สำหรับแก้ไข/ส่งออกไฟล์ .glb จากโปรแกรม Blender
-            └── FirebaseModal.jsx           # หน้าต่างตั้งค่า Firebase Config และอัปโหลดข้อมูลขึ้น Cloud Firestore
+            ├── AuthGateScreen.jsx          # หน้าจอยืนยันตัวตนก่อนเข้าใช้งาน (Google Auth + Email/Password)
+            └── AdminDashboardView.jsx      # ศูนย์จัดการข้อมูล Admin เต็มหน้าจอ (Full-Page 5 แท็บ: ภาพรวม/กระดูก/โรค/ผู้ใช้/ตั้งค่า)
 ```
 
 ---
@@ -165,25 +180,21 @@ loader.setMeshoptDecoder(MeshoptDecoder);
 
 ---
 
-## 5. โครงสร้างฐานข้อมูล Firebase Firestore (เมื่อนำ Config มาใส่ภายหลัง)
+## 5. โครงสร้างระบบยืนยันตัวตน ผู้ดูแลระบบ (`jirawat.s@msu.ac.th`) และโฮสต์จริง (`anatomy-568be`)
 
-เมื่อได้ข้อมูล Firebase Project แล้ว สามารถเชื่อมต่อได้ 2 วิธี:
-1. **ผ่านหน้าเว็บโดยตรง:** กดปุ่ม **Firebase** มุมขวาบน -> วาง JSON Config -> กด **บันทึกการตั้งค่า Firebase** -> กดปุ่ม **Seed 31 โครงสร้างเข้า Firestore**
-2. **ผ่านไฟล์ `.env.local`:** สร้างไฟล์ `.env.local` ที่รากโปรเจกต์:
-   ```env
-   VITE_FIREBASE_API_KEY=...
-   VITE_FIREBASE_AUTH_DOMAIN=...
-   VITE_FIREBASE_PROJECT_ID=...
-   VITE_FIREBASE_STORAGE_BUCKET=...
-   VITE_FIREBASE_MESSAGING_SENDER_ID=...
-   VITE_FIREBASE_APP_ID=...
-   ```
+- **Production Host:** `https://anatomy-568be.web.app` และ `https://anatomy-568be.firebaseapp.com` (Project ID: `anatomy-568be`)
+- **ระบบยืนยันตัวตนก่อนเข้าใช้งาน (`AuthGateScreen.jsx`):** บังคับ Login ก่อนเข้าดู Atlas รองรับทั้ง **Google Sign-In (`@msu.ac.th` / Gmail)** และ **Email/Password** (ฟรี `\$0` สูงสุด 50,000 MAUs)
+- **Super Admin หลักถาวร:** **`jirawat.s@msu.ac.th`** ได้รับสิทธิ์ `SUPER ADMIN` โดยอัตโนมัติทั้งฝั่งไคลเอนต์และบังคับสิทธิ์ใน `firestore.rules` พร้อมหน้า **ศูนย์จัดการข้อมูลผู้ดูแลระบบแบบเต็มหน้าจอ (`AdminDashboardView.jsx`)** ครบ 5 แท็บ:
+  1. ภาพรวมระบบ โควตา และการสำรอง/นำเข้าไฟล์ `.JSON`
+  2. แก้ไขข้อมูลกระดูกทั้ง 31 โครงสร้าง (ชื่อ คำอธิบาย ปุ่มกระดูก ข้อต่อ โน้ตคลินิก และลิงก์รูปภาพเพิ่มเติม)
+  3. เพิ่ม / แก้ไข / ลบ รายการโรคกระดูกทางคลินิก (`Pathologies CRUD`) พร้อมผูกชิ้นกระดูก 3D
+  4. จัดการรายชื่อผู้ใช้งาน แต่งตั้ง Admin ร่วมล่วงหน้าตามอีเมล (`Pre-authorize Email`) และระงับบัญชี
+  5. ตั้งค่าชื่อระบบ แถบประกาศข่าวสารหน้าเว็บ และโหมดปิดปรับปรุงชั่วคราว
 
-### คอลเลกชันใน Firestore ที่ระบบสร้างให้อัตโนมัติ:
-- `canine_bones_v2/{boneId}` — ข้อมูลกายวิภาคทั้ง 31 หมวด รายการปุ่มกระดูก รากศัพท์ รหัสสื่อ Wikimedia และรายการชิ้นย่อยทั้ง 115 ชิ้น
-- `canine_pathologies/{pathologyId}` — ข้อมูลโรคกระดูกและข้อทางคลินิกทั้ง 10 โรคพร้อมจุดสังเกตฟิล์มเอกซเรย์
-- `canine_user_notes/{boneId}` — บันทึกช่วยจำส่วนตัวของผู้เรียนรายชิ้นกระดูก
-- `canine_study_progress/default_student` — รายการกระดูกที่ทำเครื่องหมายว่าเรียนแล้ว (`studiedBoneIds`)
+### คอลเลกชันใน Firestore (สถาปัตยกรรมประหยัดโควตาสูงสุด — Ultra-Low Quota):
+- `canine_atlas_meta/catalog_v2` (**1 เอกสารรวมศูนย์ ~138 KB**) — รวมข้อมูลทั้ง 31 โครงสร้าง (115 ชิ้นย่อย), โรคกระดูก และการตั้งค่าหน้าเว็บไว้ในเอกสารเดียว บันทึกใช้เพียง **1 Write** และเปิดเว็บดึงข้อมูลใช้เพียง **1 Read ต่อ 24 ชั่วโมง**
+- `canine_atlas_meta/users_registry_v1` (**1 เอกสารรวมรายชื่อผู้ใช้และสิทธิ์**) — ทำให้หน้าจัดการผู้ใช้ของ Admin โหลดรายชื่อทั้งหมดด้วยโควตาเพียง **1 Read**
+- `canine_user_state/{uid}` (**1 เอกสารต่อบัญชีผู้ใช้**) — รวมบันทึกช่วยจำ (`notes`), รายการปักหมุด (`bookmarkedBoneIds`) และรายการเรียนแล้ว (`studiedBoneIds`) พร้อมระบบ `Debounce 2.5 วินาที` + `Diff Check` + `Daily Quota Circuit Breaker`
 
 ---
 

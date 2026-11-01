@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Primary Super Admin: jirawat.s@msu.ac.th (0 extra rule reads via short-circuit)
+    function isSuperAdmin() {
+      return isSignedIn() &&
+             request.auth.token.email != null &&
+             request.auth.token.email.lower() == 'jirawat.s@msu.ac.th';
+    }
+
+    function isDelegatedAdmin() {
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/canine_atlas_meta/users_registry_v1) &&
+             (request.auth.uid in get(/databases/$(database)/documents/canine_atlas_meta/users_registry_v1).data.users) &&
+             (get(/databases/$(database)/documents/canine_atlas_meta/users_registry_v1).data.users[request.auth.uid].role in ['admin', 'super_admin']);
+    }
+
+    function isAdmin() {
+      return isSuperAdmin() || isDelegatedAdmin();
+    }
+
+    // 1. Single-Document Master Catalog (31 NAV Bones + Pathologies + Portal Settings)
+    match /canine_atlas_meta/catalog_v2 {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // 2. Single-Document User Directory & Pre-Authorized Roles
+    match /canine_atlas_meta/users_registry_v1 {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() || (
+        isSignedIn() &&
+        request.resource.data.users.keys().hasOnly([request.auth.uid]) &&
+        request.resource.data.users[request.auth.uid].role == 'member'
+      );
+      allow update: if isAdmin() || (
+        isSignedIn() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['users', 'updatedAt']) &&
+        request.resource.data.users.diff(resource.data.users).affectedKeys().hasOnly([request.auth.uid]) &&
+        (
+          (
+            !(request.auth.uid in resource.data.users) &&
+            (
+              request.resource.data.users[request.auth.uid].role == 'member' ||
+              ('preAuthorized' in resource.data && request.resource.data.users[request.auth.uid].role == 'admin')
+            )
+          ) ||
+          (
+            (request.auth.uid in resource.data.users) &&
+            request.resource.data.users[request.auth.uid].role == resource.data.users[request.auth.uid].role &&
+            request.resource.data.users[request.auth.uid].status == resource.data.users[request.auth.uid].status
+          )
+        )
+      );
+    }
+
+    // 3. Per-User Study Progress, Bookmarks & Notes
+    match /canine_user_state/{userId} {
+      allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+    }
+  }
+}
